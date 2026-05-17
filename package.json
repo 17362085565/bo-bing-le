@@ -1,0 +1,18 @@
+{
+  "name": "test",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "@21st-dev/magic": "^0.1.0",
+    "@stabgan/openrouter-mcp-multimodal": "^4.5.1",
+    "@tugcantopaloglu/godot-mcp": "github:tugcantopaloglu/godot-mcp"
+  }
+}

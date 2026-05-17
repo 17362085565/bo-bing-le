@@ -1,0 +1,1070 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>三层身份 - 桌游模拟</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Microsoft YaHei',sans-serif;background:#1a1a2e;color:#ecf0f1;min-height:100vh;overflow-x:hidden}
+.hidden{display:none!important}
+
+#start-screen{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;gap:20px}
+#start-screen h1{font-size:2.5em;background:linear-gradient(135deg,#4a90d9,#d94a4a);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+#start-screen .subtitle{color:#7f8c8d;font-size:1.1em}
+.setup-card{background:#16213e;border-radius:16px;padding:30px 40px;max-width:500px;width:90%}
+.setup-card label{display:block;margin:12px 0 4px;color:#bdc3c7;font-size:0.95em}
+.setup-card input{width:100%;padding:10px 14px;border:1px solid #2c3e50;border-radius:8px;background:#1a1a2e;color:#ecf0f1;font-size:1em;outline:none}
+.setup-card input:focus{border-color:#4a90d9}
+.player-count-row{display:flex;gap:10px;margin:12px 0}
+.pc-btn{flex:1;padding:10px;border:2px solid #2c3e50;border-radius:8px;background:#1a1a2e;color:#ecf0f1;cursor:pointer;font-size:1em;transition:.2s}
+.pc-btn:hover,.pc-btn.active{border-color:#4a90d9;background:#16213e}
+.btn{display:inline-block;padding:12px 28px;border:none;border-radius:8px;cursor:pointer;font-size:1em;font-weight:bold;transition:.2s}
+.btn-primary{background:linear-gradient(135deg,#4a90d9,#357abd);color:#fff}
+.btn-primary:hover{transform:translateY(-1px);box-shadow:0 4px 15px rgba(74,144,217,.4)}
+.btn-danger{background:linear-gradient(135deg,#d94a4a,#c0392b);color:#fff}
+.btn-gold{background:linear-gradient(135deg,#f1c40f,#f39c12);color:#1a1a2e}
+.btn-gray{background:#2c3e50;color:#ecf0f1}
+.btn-sm{padding:6px 14px;font-size:.85em}
+.btn:disabled{opacity:.4;cursor:not-allowed;transform:none!important}
+
+#handoff-overlay{position:fixed;inset:0;background:rgba(0,0,0,.95);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:1000;gap:24px}
+#handoff-overlay h2{font-size:2em}
+#handoff-overlay .next-player{color:#4a90d9;font-size:1.5em}
+#handoff-overlay .info-text{color:#7f8c8d;max-width:400px;text-align:center;line-height:1.6}
+
+#game-screen{max-width:1200px;margin:0 auto;padding:16px}
+#top-bar{display:flex;justify-content:space-between;align-items:center;background:#16213e;border-radius:12px;padding:14px 20px;margin-bottom:16px;flex-wrap:wrap;gap:10px}
+#top-bar .turn-info{font-size:1.1em}
+.phase-badge{padding:4px 12px;border-radius:20px;font-size:.85em;font-weight:bold}
+.phase-resource{background:#f39c12;color:#1a1a2e}
+.phase-action{background:#27ae60;color:#fff}
+.phase-declare{background:#9b59b6;color:#fff}
+.phase-peace{background:#f1c40f;color:#1a1a2e}
+#top-bar .coins{font-size:1.2em;font-weight:bold;color:#f1c40f}
+
+#main-area{display:grid;grid-template-columns:280px 1fr 280px;gap:16px}
+@media(max-width:900px){#main-area{grid-template-columns:1fr}}
+
+#my-cards{background:#16213e;border-radius:12px;padding:16px}
+#my-cards h3{text-align:center;margin-bottom:12px;color:#bdc3c7}
+.identity-card{background:#1a1a2e;border:2px solid #2c3e50;border-radius:10px;padding:14px;margin:8px 0;text-align:center;transition:.2s;position:relative;min-height:80px;display:flex;flex-direction:column;justify-content:center}
+.identity-card.revealed{border-color:#f1c40f}
+.identity-card.revealed.blue{border-color:#4a90d9;background:rgba(74,144,217,.1)}
+.identity-card.revealed.red{border-color:#d94a4a;background:rgba(217,74,74,.1)}
+.identity-card.revealed.alien{border-color:#9b59b6;background:rgba(155,89,182,.1)}
+.identity-card .layer-tag{position:absolute;top:6px;right:8px;font-size:.7em;color:#7f8c8d}
+.identity-card .card-name{font-size:1.2em;font-weight:bold}
+.identity-card .card-desc{font-size:.75em;color:#95a5a6;margin-top:4px}
+.identity-card .card-hidden{color:#7f8c8d;font-size:1.5em}
+.identity-card .card-color-dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:4px}
+.identity-card .known-tag{position:absolute;top:6px;left:8px;font-size:.65em;background:#f39c12;color:#1a1a2e;padding:2px 6px;border-radius:8px}
+
+#public-board{background:#16213e;border-radius:12px;padding:16px}
+#public-board h3{margin-bottom:12px;color:#bdc3c7;text-align:center}
+.player-row{display:flex;flex-wrap:wrap;gap:12px;justify-content:center}
+.player-card{background:#1a1a2e;border-radius:10px;padding:12px;min-width:120px;text-align:center;border:2px solid #2c3e50;transition:.2s}
+.player-card.dead{opacity:.4;border-color:#7f8c8d}
+.player-card.current{border-color:#f1c40f}
+.player-card .pname{font-weight:bold;font-size:.95em;margin-bottom:8px}
+.pid-slots{display:flex;gap:6px;justify-content:center}
+.pid-slot{width:36px;height:50px;border-radius:6px;border:2px solid #2c3e50;display:flex;align-items:center;justify-content:center;font-size:.7em;font-weight:bold;cursor:default}
+.pid-slot.hidden{background:#2c3e50;color:#7f8c8d}
+.pid-slot.revealed.blue{background:#4a90d9;border-color:#4a90d9;color:#fff}
+.pid-slot.revealed.red{background:#d94a4a;border-color:#d94a4a;color:#fff}
+.pid-slot.revealed.alien{background:#9b59b6;border-color:#9b59b6;color:#fff}
+.pid-slot .slot-layer{font-size:.6em;display:block}
+
+#actions-panel{background:#16213e;border-radius:12px;padding:16px}
+#actions-panel h3{margin-bottom:12px;color:#bdc3c7;text-align:center}
+.action-btn{display:block;width:100%;padding:10px;margin:6px 0;border:1px solid #2c3e50;border-radius:8px;background:#1a1a2e;color:#ecf0f1;cursor:pointer;font-size:.9em;text-align:left;transition:.2s}
+.action-btn:hover{border-color:#4a90d9;background:#16213e}
+.action-btn .cost{float:right;color:#f1c40f;font-size:.85em}
+.action-btn:disabled{opacity:.3;cursor:not-allowed}
+
+#grimoire-area{background:#16213e;border-radius:12px;padding:16px;margin-top:16px}
+#grimoire-area h3{margin-bottom:8px;color:#bdc3c7}
+.grimoire-hand{display:flex;gap:8px;flex-wrap:wrap}
+.grimoire-card{background:linear-gradient(135deg,#2c3e50,#34495e);border:2px solid #9b59b6;border-radius:8px;padding:8px 12px;cursor:pointer;font-size:.85em;min-width:90px;text-align:center;transition:.2s}
+.grimoire-card:hover{border-color:#f1c40f;transform:translateY(-2px)}
+.grimoire-card .gname{font-weight:bold;color:#9b59b6}
+.grimoire-card .gdesc{font-size:.7em;color:#95a5a6;margin-top:2px}
+
+#log-area{background:#16213e;border-radius:12px;padding:16px;margin-top:16px;max-height:200px;overflow-y:auto}
+#log-area h3{margin-bottom:8px;color:#bdc3c7}
+.log-entry{padding:4px 0;border-bottom:1px solid #2c3e50;font-size:.85em;color:#95a5a6}
+.log-entry .time{color:#7f8c8d;margin-right:8px}
+
+#modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.8);display:flex;align-items:center;justify-content:center;z-index:900}
+#modal{background:#16213e;border-radius:16px;padding:24px;max-width:500px;width:90%;max-height:80vh;overflow-y:auto}
+#modal h3{margin-bottom:16px;text-align:center}
+.modal-option{display:block;width:100%;padding:12px;margin:6px 0;border:1px solid #2c3e50;border-radius:8px;background:#1a1a2e;color:#ecf0f1;cursor:pointer;text-align:left;font-size:.95em;transition:.2s}
+.modal-option:hover{border-color:#4a90d9}
+.modal-cancel{display:block;width:100%;padding:10px;margin-top:12px;background:#2c3e50;border:none;border-radius:8px;color:#ecf0f1;cursor:pointer;font-size:.9em}
+
+.toast{position:fixed;top:20px;left:50%;transform:translateX(-50%);background:#f39c12;color:#1a1a2e;padding:12px 24px;border-radius:8px;font-weight:bold;z-index:1100;animation:fadeInOut 3s ease forwards}
+.toast.error{background:#d94a4a;color:#fff}
+.toast.success{background:#27ae60;color:#fff}
+@keyframes fadeInOut{0%{opacity:0;top:0}10%{opacity:1;top:20px}80%{opacity:1;top:20px}100%{opacity:0;top:0}}
+
+.faction-blue{color:#4a90d9}
+.faction-red{color:#d94a4a}
+.faction-alien{color:#9b59b6}
+.faction-hybrid{color:#f1c40f}
+
+#game-over-screen{position:fixed;inset:0;background:rgba(0,0,0,.9);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:2000;gap:16px}
+#game-over-screen h1{font-size:2.5em}
+#game-over-screen .result-detail{color:#bdc3c7;max-width:500px;text-align:center;line-height:1.8}
+
+.declare-op-btn{border:2px solid #9b59b6!important;color:#9b59b6!important;font-weight:bold}
+.peace-btn{border:2px solid #f1c40f!important;color:#f1c40f!important}
+</style>
+</head>
+<body>
+
+<div id="start-screen">
+<h1>三层身份</h1>
+<p class="subtitle">身份推理聚会桌游 · 5-8人 · 热座模式</p>
+<div class="setup-card">
+  <label>选择玩家人数</label>
+  <div class="player-count-row" id="pc-row"></div>
+  <div id="name-inputs"></div>
+  <button class="btn btn-primary" id="start-btn" style="width:100%;margin-top:16px">开始游戏</button>
+</div>
+<div style="color:#7f8c8d;max-width:500px;text-align:center;line-height:1.8;font-size:0.9em">
+  <strong>规则简述：</strong>每位玩家持有3层身份牌，红蓝阵营由"颜色浓度"(权重3/2/1)决定。<br>
+  你不知道自己的身份——需要通过星币调查、魔典效果来推理。<br>
+  猜对自己的身份可发动强力宣言效果；猜错只揭示无效果。<br>
+  三层全揭示=死亡出局。合理推理，找到队友，消灭敌人！
+</div>
+</div>
+
+<div id="handoff-overlay" class="hidden">
+<h2>请传递设备</h2>
+<div class="next-player"></div>
+<p class="info-text">确保只有当前玩家能看到屏幕内容。准备好后点击按钮。</p>
+<button class="btn btn-primary" id="handoff-ready">我已准备好，开始我的回合</button>
+</div>
+
+<div id="game-screen" class="hidden">
+<div id="top-bar">
+  <span class="turn-info"></span>
+  <span class="phase-badge"></span>
+  <span class="coins">⭐ <span id="coin-display">0</span></span>
+</div>
+<div id="main-area">
+  <div id="my-cards"><h3>我的身份</h3><div id="my-identities"></div></div>
+  <div id="public-board"><h3>场上局势</h3><div id="player-grid" class="player-row"></div></div>
+  <div id="actions-panel"><h3>行动</h3><div id="action-btns"></div></div>
+</div>
+<div id="grimoire-area" class="hidden"><h3>魔典手牌</h3><div id="grimoire-cards" class="grimoire-hand"></div></div>
+<div id="log-area"><h3>日志</h3><div id="log-entries"></div></div>
+</div>
+
+<div id="modal-overlay" class="hidden"><div id="modal"></div></div>
+<div id="toast-container"></div>
+<div id="game-over-screen" class="hidden"></div>
+
+<script>
+// ============ CARD DEFINITIONS ============
+const L1_POOL = [
+  {type:'l1_1',name:'先知',color:'blue',desc:'宣言成功：揭示场上任意一张身份'},
+  {type:'l1_2',name:'隐者',color:'red',desc:'宣言成功：暗置场上任意一张已揭示身份'},
+  {type:'l1_3',name:'商人',color:'blue',desc:'宣言成功：获得4枚星币'},
+  {type:'l1_4',name:'密探',color:'red',desc:'宣言成功：调查至多两位玩家各一张身份'},
+  {type:'l1_5',name:'术士',color:'blue',desc:'宣言成功：选择一名玩家跳过其下回合'},
+  {type:'l1_6',name:'信使',color:'red',desc:'宣言成功：与一名玩家互相查看对方一张身份'},
+];
+const L2_POOL = [
+  {type:'l2_1',name:'学者',color:'blue',desc:'宣言成功：抽取3张魔典'},
+  {type:'l2_2',name:'陷阱师',color:'red',desc:'被动：被非宣言揭示时，揭示者失去所有星币'},
+  {type:'l2_3',name:'策士',color:'blue',desc:'宣言成功：下回合可以宣言两次'},
+  {type:'l2_4',name:'窥视者',color:'red',desc:'宣言成功：查看任意一张已被暗置的身份'},
+  {type:'l2_5',name:'禁言者',color:'blue',desc:'宣言成功：指定一名玩家下回合不能宣言'},
+  {type:'l2_6',name:'护卫',color:'red',desc:'被动：被调查时可支付1星币使其无效'},
+];
+const L3_POOL = [
+  {type:'l3_1',name:'异族',color:'alien',desc:'特殊：无视前两层，强制归属异族阵营'},
+  {type:'l3_2',name:'觉醒者',color:'blue',desc:'宣言成功：查看自己所有未揭示的身份'},
+  {type:'l3_3',name:'复仇者',color:'red',desc:'被动：死亡时选择一名玩家揭示其一张身份'},
+  {type:'l3_4',name:'赌徒',color:'red',desc:'宣言此牌失败时不被揭示(限一次)'},
+  {type:'l3_5',name:'炼金师',color:'blue',desc:'宣言成功：额外获得2星币'},
+  {type:'l3_6',name:'影武者',color:'blue',desc:'宣言成功：与其他玩家交换一张已揭示身份'},
+];
+
+function buildPool(pool){const d=[];pool.forEach(c=>{d.push({...c,uid:c.type+'_a'});d.push({...c,uid:c.type+'_b'});});return d;}
+function shuffle(arr){for(let i=arr.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[arr[i],arr[j]]=[arr[j],arr[i]];}return arr;}
+
+const GRIMOIRE_DEFS = [
+  {type:'g1',name:'洞察',desc:'免费调查任意玩家任意一层身份',count:3},
+  {type:'g2',name:'敛财',desc:'获得3枚星币',count:2},
+  {type:'g3',name:'休战',desc:'跳过下一位玩家的回合',count:1},
+  {type:'g4',name:'内省',desc:'查看自己一张未揭示身份',count:2},
+  {type:'g5',name:'回收',desc:'从弃牌堆拿取一张魔典',count:1},
+  {type:'g6',name:'折扣',desc:'本回合调查费用减半',count:1},
+  {type:'g7',name:'隐遁',desc:'将自己一张已揭示身份暗置',count:1},
+  {type:'g8',name:'偷换',desc:'交换两名玩家各一张未揭示身份(不看)',count:1},
+  {type:'g9',name:'逼言',desc:'指定一名玩家下回合必须宣言',count:1},
+  {type:'g10',name:'顿悟',desc:'额外抽取1张魔典',count:1},
+  {type:'g11',name:'庇护',desc:'保护一名玩家本回合不被调查',count:1},
+  {type:'g12',name:'翻旧账',desc:'查看弃牌堆选择1张加入手牌',count:1},
+  {type:'g13',name:'星图',desc:'查看任意两名其他玩家各一张身份',count:1},
+];
+function buildGrimoireDeck(){const d=[];GRIMOIRE_DEFS.forEach(g=>{for(let i=0;i<g.count;i++)d.push({...g,uid:g.type+'_'+i});});return shuffle(d);}
+
+// ============ GAME STATE ============
+let G = null;
+
+function initGame(playerNames){
+  const n = playerNames.length;
+  const l1Deck = shuffle(buildPool(L1_POOL));
+  const l2Deck = shuffle(buildPool(L2_POOL));
+  const l3Deck = shuffle(buildPool(L3_POOL));
+
+  const players = playerNames.map((name,i)=>({
+    name, index:i,
+    identities:[
+      {layer:1,card:l1Deck[i],revealed:false},
+      {layer:2,card:l2Deck[i],revealed:false},
+      {layer:3,card:l3Deck[i],revealed:false},
+    ],
+    coins:0, grimoires:[], alive:true,
+    skipNext:false, mustDeclare:false, cannotDeclare:false,
+    canDeclareTwice:false, declarationsThisTurn:0,
+    protected:false, discountThisTurn:false,
+    gamblerUsed:false,
+  }));
+  players.forEach(p=>{p.faction=calcFaction(p.identities.map(id=>id.card));});
+
+  G = {
+    players, playerCount:n, currentPlayer:0,
+    phase:'resource', grimoireDeck:buildGrimoireDeck(), grimoireDiscard:[],
+    log:[], peaceInitiator:null, peaceResponders:[], peaceBroken:false,
+    gameOver:false, pendingAction:null, turnCount:1,
+    knowledge:{}, selfKnowledge:{}, revealHistory:[],
+    killTracker:{},
+  };
+  addLog('游戏开始！每位玩家获得3张身份牌。');
+  addLog(players.map(p=>p.name).join('、')+' 共'+n+'人参与。');
+}
+
+function calcFaction(identities){
+  if(identities[2]&&identities[2].type==='l3_1') return 'alien';
+  const w=[3,2,1]; let b=0,r=0;
+  identities.forEach((id,i)=>{if(!id)return;if(id.color==='blue')b+=w[i];else if(id.color==='red')r+=w[i];});
+  if(b>r)return'blue';if(r>b)return'red';return'hybrid';
+}
+
+function getPlayerKnowledge(observer,target,layer){
+  const t=G.players[target];
+  if(t.identities[layer-1].revealed) return t.identities[layer-1].card;
+  if(observer===target){const k=G.selfKnowledge[observer+'_'+layer];if(k)return k;}
+  const k=G.knowledge[observer+'_'+target+'_'+layer];
+  return k||null;
+}
+function setPlayerKnowledge(observer,target,layer,card){
+  if(observer===target) G.selfKnowledge[observer+'_'+layer]=card;
+  else G.knowledge[observer+'_'+target+'_'+layer]=card;
+}
+function revealedCount(pi){return G.players[pi].identities.filter(id=>id.revealed).length;}
+function addLog(msg){G.log.unshift({msg,time:new Date().toLocaleTimeString()});if(G.log.length>100)G.log.pop();}
+function nextAlive(from){
+  for(let i=1;i<=G.playerCount;i++){const idx=(from+i)%G.playerCount;if(G.players[idx].alive)return idx;}
+  return -1;
+}
+
+function checkDeath(pi){
+  if(revealedCount(pi)>=3){
+    G.players[pi].alive=false;
+    addLog('💀 '+G.players[pi].name+' 三层身份全部揭示，死亡！');
+    // 复仇者
+    const l3=G.players[pi].identities[2];
+    if(l3.revealed&&l3.card.type==='l3_3'){
+      G.pendingDeathRevenge=pi;
+    }
+    return true;
+  }
+  return false;
+}
+
+function checkWin(){
+  const alive=G.players.filter(p=>p.alive);
+  const dead=G.players.filter(p=>!p.alive);
+  // Check for kills: if any faction has a dead member killed by opposing faction
+  for(const[ killer, victims] of Object.entries(G.killTracker)){
+    for(const v of victims){
+      const vp=G.players[v]; const kp=G.players[parseInt(killer)];
+      if(!vp||!kp)continue;
+      if(kp.faction==='hybrid'&&(vp.faction==='blue'||vp.faction==='red')){
+        return {winner:'hybrid',msg:'混血儿 '+kp.name+' 亲手杀死 '+vp.name+'，混血儿胜利！'};
+      }
+      if(kp.faction==='blue'&&vp.faction==='red'){
+        return {winner:'blue',msg:'蓝色阵营 '+kp.name+' 杀死红色阵营 '+vp.name+'，蓝色胜利！'};
+      }
+      if(kp.faction==='red'&&vp.faction==='blue'){
+        return {winner:'red',msg:'红色阵营 '+kp.name+' 杀死蓝色阵营 '+vp.name+'，红色胜利！'};
+      }
+    }
+  }
+  // Also check simple: no enemies alive
+  const aliens=alive.filter(p=>p.faction==='alien');
+  const hybrids=alive.filter(p=>p.faction==='hybrid');
+  const blues=alive.filter(p=>p.faction==='blue');
+  const reds=alive.filter(p=>p.faction==='red');
+  if(aliens.length===0&&hybrids.length===0){
+    if(blues.length===0&&reds.length===0)return null;
+    if(reds.length===0&&blues.length>0)return {winner:'blue',msg:'红色阵营全部死亡，蓝色阵营胜利！'};
+    if(blues.length===0&&reds.length>0)return {winner:'red',msg:'蓝色阵营全部死亡，红色阵营胜利！'};
+  }
+  return null;
+}
+
+function giveCoins(pi,amt){G.players[pi].coins+=amt;addLog('💰 '+G.players[pi].name+' 获得'+amt+'枚星币。');}
+
+function investigate(observer,target,layer){
+  const cost=layer; const isSelf=observer===target;
+  let ac=isSelf?cost*2:cost;
+  if(G.players[observer].discountThisTurn) ac=Math.max(0,Math.floor(ac/2));
+  if(G.players[observer].coins<ac) return {err:'星币不足！需要'+ac+'⭐，当前'+G.players[observer].coins+'⭐'};
+  if(!G.players[target].alive) return {err:'目标已死亡！'};
+  if(G.players[target].identities[layer-1].revealed) return {err:'该身份已揭示！'};
+  if(G.players[target].protected) return {err:'该玩家受庇护，无法调查！'};
+
+  // 护卫 passive
+  const tl2=G.players[target].identities[1];
+  if(!isSelf&&!tl2.revealed&&tl2.card.type==='l2_6'&&G.players[target].coins>=1){
+    G.players[target].coins-=1;
+    G.players[observer].coins-=ac;
+    addLog('🛡️ '+G.players[target].name+'的【护卫】触发，支付1⭐抵消调查！');
+    return {err:'调查被护卫抵消！'};
+  }
+
+  G.players[observer].coins-=ac;
+  const card=G.players[target].identities[layer-1].card;
+  setPlayerKnowledge(observer,target,layer,card);
+  const tn=isSelf?'自己':G.players[target].name;
+  addLog('🔍 '+G.players[observer].name+' 调查了'+tn+'的第'+layer+'层身份。');
+  return {success:true,card,targetName:tn,layer};
+}
+
+function revealIdentity(actor,target,layer){
+  const cost=layer*2;
+  if(G.players[actor].coins<cost) return {err:'星币不足！需要'+cost+'⭐'};
+  if(!G.players[target].alive) return {err:'目标已死亡！'};
+  if(actor===target) return {err:'不能揭示自己的身份！'};
+  if(G.players[target].identities[layer-1].revealed) return {err:'该身份已揭示！'};
+  if(!getPlayerKnowledge(actor,target,layer)) return {err:'你必须先调查该身份才能揭示！'};
+
+  G.players[actor].coins-=cost;
+  const card=G.players[target].identities[layer-1].card;
+  G.players[target].identities[layer-1].revealed=true;
+  G.revealHistory.push({player:target,layer,card});
+  const cn=card.color==='blue'?'蓝':card.color==='red'?'红':'异族';
+  addLog('📢 '+G.players[actor].name+' 揭示了'+G.players[target].name+'的第'+layer+'层：【'+card.name+'】('+cn+')');
+
+  // 陷阱师
+  if(card.type==='l2_2'){
+    const lost=G.players[actor].coins;
+    G.players[actor].coins=0;
+    addLog('💥 【陷阱师】触发！'+G.players[actor].name+'失去所有星币('+lost+'枚)！');
+  }
+  const died=checkDeath(target);
+  if(died){
+    if(!G.killTracker[actor]) G.killTracker[actor]=[];
+    G.killTracker[actor].push(target);
+  }
+  const win=checkWin();
+  if(win) endGame(win);
+  return {success:true,card,died};
+}
+
+function declareIdentity(pi,layer,guessedType){
+  const p=G.players[pi];
+  if(!p.alive) return {err:'你已死亡！'};
+  if(p.identities[layer-1].revealed) return {err:'该层已揭示！'};
+  const maxD=p.canDeclareTwice?2:1;
+  if(p.declarationsThisTurn>=maxD) return {err:'本回合宣言次数已用完！'};
+
+  const actual=p.identities[layer-1].card;
+  const correct=actual.type===guessedType;
+  p.declarationsThisTurn++;
+
+  if(correct){
+    p.identities[layer-1].revealed=true;
+    G.revealHistory.push({player:pi,layer,card:actual});
+    addLog('✨ '+p.name+' 宣言成功！第'+layer+'层是【'+actual.name+'】！');
+    checkDeath(pi);
+    const win=checkWin();
+    if(win) endGame(win);
+    return {success:true,correct:true,card:actual,layer};
+  }else{
+    // 赌徒
+    const l3=p.identities[2];
+    if(l3.card.type==='l3_4'&&!p.gamblerUsed&&!l3.revealed&&layer===3){
+      p.gamblerUsed=true;
+      addLog('🎲 '+p.name+' 宣言失败，但【赌徒】效果使其不被揭示！');
+      return {success:true,correct:false,notRevealed:true,card:actual};
+    }
+    p.identities[layer-1].revealed=true;
+    G.revealHistory.push({player:pi,layer,card:actual});
+    addLog('❌ '+p.name+' 宣言失败！第'+layer+'层实际是【'+actual.name+'】（无效果）');
+    const died=checkDeath(pi);
+    const win=checkWin();
+    if(win) endGame(win);
+    return {success:true,correct:false,card:actual,died};
+  }
+}
+
+function callForPeace(pi){
+  G.peaceInitiator=pi; G.peaceResponders=[pi]; G.peaceBroken=false;
+  addLog('🕊️ '+G.players[pi].name+' 发起鸣金！认为场上所有人均为队友。');
+  endCurrentTurn();
+}
+function respondToPeace(pi,accept){
+  if(accept){
+    G.peaceResponders.push(pi);
+    addLog('🕊️ '+G.players[pi].name+' 响应鸣金。');
+    const allAlive=G.players.filter(p=>p.alive).map(p=>p.index);
+    if(allAlive.every(i=>G.peaceResponders.includes(i))) resolvePeace();
+    else endCurrentTurn();
+  }else{
+    G.peaceBroken=true;
+    addLog('💔 '+G.players[pi].name+' 拒绝鸣金，游戏继续！');
+    G.peaceInitiator=null; G.peaceResponders=[];
+    endCurrentTurn();
+  }
+}
+function resolvePeace(){
+  const alive=G.players.filter(p=>p.alive);
+  const factions=alive.map(p=>p.faction);
+  const allSame=factions.every(f=>f===factions[0]);
+  if(allSame){
+    endGame({winner:factions[0],msg:'鸣金成功！场上全为同一阵营，共同胜利！'});
+  }else{
+    const ac=factions.filter(f=>f==='alien').length;
+    const hc=factions.filter(f=>f==='hybrid').length;
+    const bc=factions.filter(f=>f==='blue').length;
+    const rc=factions.filter(f=>f==='red').length;
+    let w,m;
+    if(ac>0){w='alien';m='鸣金失败，异族在场优先胜利！';}
+    else if(hc>0){w='hybrid';m='鸣金失败，混血儿优先胜利！';}
+    else if(rc<bc){w='red';m='鸣金失败，人数较少的红色阵营胜利！';}
+    else if(bc<rc){w='blue';m='鸣金失败，人数较少的蓝色阵营胜利！';}
+    else {w='draw';m='鸣金失败，红蓝平局！';}
+    endGame({winner:w,msg:m});
+  }
+}
+
+function endGame(result){
+  G.gameOver=true; G.gameResult=result;
+  renderGameOver();
+}
+
+function endCurrentTurn(){
+  if(G.gameOver)return;
+  const p=G.players[G.currentPlayer];
+  p.protected=false; p.discountThisTurn=false; p.declarationsThisTurn=0; p.mustDeclare=false;
+  // 复仇者
+  if(G.pendingDeathRevenge!==null&&G.pendingDeathRevenge!==undefined){
+    const deadIdx=G.pendingDeathRevenge;
+    G.pendingDeathRevenge=null;
+    G.pendingAction={type:'revenge',player:deadIdx};
+    showModal_selectPlayer('复仇者：选择一名玩家揭示其一张身份', deadIdx, (c)=>{
+      const t=G.players[c.target];
+      const urev=[1,2,3].filter(l=>!t.identities[l-1].revealed);
+      if(urev.length===0){addLog('目标已无未揭示身份。');G.pendingAction=null;endCurrentTurn();return;}
+      if(urev.length===1){
+        t.identities[urev[0]-1].revealed=true;
+        G.revealHistory.push({player:c.target,layer:urev[0],card:t.identities[urev[0]-1].card});
+        addLog('🗡️ 复仇者：'+t.name+'的第'+urev[0]+'层被揭示！');
+        checkDeath(c.target);
+        G.pendingAction=null;
+        endCurrentTurn();
+        return;
+      }
+      showModal_selectLayerFromList('揭示'+t.name+'的哪一层？',urev,(l2)=>{
+        t.identities[l2.layer-1].revealed=true;
+        G.revealHistory.push({player:c.target,layer:l2.layer,card:t.identities[l2.layer-1].card});
+        addLog('🗡️ 复仇者：'+t.name+'的第'+l2.layer+'层被揭示！');
+        checkDeath(c.target);
+        G.pendingAction=null;
+        endCurrentTurn();
+      });
+    });
+    return;
+  }
+
+  if(G.peaceInitiator!==null&&!G.peaceBroken){
+    let next=nextAlive(G.currentPlayer);
+    if(next===-1){endGame({winner:'draw',msg:'无存活玩家！'});return;}
+    G.currentPlayer=next; G.phase='peace';
+    if(!G.peaceResponders.includes(next)) showHandoff();
+    else {G.phase='action'; showHandoff();}
+    return;
+  }
+
+  let next=nextAlive(G.currentPlayer);
+  if(next===-1){endGame({winner:'draw',msg:'无存活玩家！'});return;}
+  if(next<=G.currentPlayer) G.turnCount++;
+  G.currentPlayer=next; G.phase='resource';
+  G.peaceInitiator=null; G.peaceResponders=[];
+
+  const np=G.players[next];
+  if(np.skipNext){np.skipNext=false;addLog('⏭️ '+np.name+'被跳过一回合。');endCurrentTurn();return;}
+  np.cannotDeclare=false;
+  showHandoff();
+}
+
+// ============ DECLARATION EFFECTS ============
+function applyDeclareEffect(pi,card,layer){
+  const p=G.players[pi];
+  switch(card.type){
+    case 'l1_1':G.pendingAction={type:'eff_reveal_any',player:pi};break;
+    case 'l1_2':G.pendingAction={type:'eff_hide_any',player:pi};break;
+    case 'l1_3':giveCoins(pi,4);break;
+    case 'l1_4':G.pendingAction={type:'eff_inv_two',player:pi,done:0};break;
+    case 'l1_5':G.pendingAction={type:'eff_skip',player:pi};break;
+    case 'l1_6':G.pendingAction={type:'eff_mutual',player:pi};break;
+    case 'l2_1':drawGrimoire(pi,3);break;
+    case 'l2_3':p.canDeclareTwice=true;addLog('📋 '+p.name+'下回合可以宣言两次！');break;
+    case 'l2_4':G.pendingAction={type:'eff_view_hidden',player:pi};break;
+    case 'l2_5':G.pendingAction={type:'eff_silence',player:pi};break;
+    case 'l3_2':
+      for(let i=1;i<=3;i++){if(!p.identities[i-1].revealed)setPlayerKnowledge(pi,pi,i,p.identities[i-1].card);}
+      addLog('👁️ '+p.name+'查看自己所有未揭示身份。');break;
+    case 'l3_5':giveCoins(pi,2);break;
+    case 'l3_6':G.pendingAction={type:'eff_swap_rev',player:pi};break;
+  }
+  renderAll();
+  if(G.pendingAction) showPendingModal();
+}
+
+function showPendingModal(){
+  const a=G.pendingAction;
+  if(!a)return;
+  const titles={
+    eff_reveal_any:'先知：选择要揭示的目标和层数',
+    eff_hide_any:'隐者：选择要暗置的目标和层数',
+    eff_inv_two:'密探：选择第1位目标和层数',
+    eff_skip:'术士：选择要跳过的玩家',
+    eff_mutual:'信使：选择要互相查看的玩家和层数',
+    eff_view_hidden:'窥视者：选择要查看暗置身份的目标和层数',
+    eff_silence:'禁言者：选择要禁言的玩家',
+    eff_swap_rev:'影武者：选择要交换的玩家和已揭示层数',
+
+  };
+  const t=titles[a.type]||'选择';
+  if(a.type==='eff_skip'||a.type==='eff_silence'||a.type==='grimoire_skip'){
+    showModal_selectPlayer(t,a.player,(c)=>resolvePending(c));
+  }else{
+    showModal_selectPlayerAndLayer(t,a.player,(c)=>resolvePending(c));
+  }
+}
+
+function resolvePending(choice){
+  if(!G.pendingAction)return;
+  const a=G.pendingAction,p=G.players[a.player];
+  switch(a.type){
+    case 'eff_reveal_any':{
+      const t=G.players[choice.target];
+      if(t.identities[choice.layer-1].revealed)break;
+      t.identities[choice.layer-1].revealed=true;
+      G.revealHistory.push({player:choice.target,layer:choice.layer,card:t.identities[choice.layer-1].card});
+      addLog('📢 先知：'+p.name+'揭示了'+t.name+'的第'+choice.layer+'层！');
+      if(t.identities[choice.layer-1].card.type==='l2_2'){const lost=p.coins;p.coins=0;addLog('💥 陷阱师！'+p.name+'失去'+lost+'⭐！');}
+      checkDeath(choice.target);const win=checkWin();if(win)endGame(win);
+      break;
+    }
+    case 'eff_hide_any':{
+      const t=G.players[choice.target];
+      if(!t.identities[choice.layer-1].revealed)break;
+      t.identities[choice.layer-1].revealed=false;
+      addLog('🌫️ 隐者：'+p.name+'暗置了'+t.name+'的第'+choice.layer+'层。');break;
+    }
+    case 'eff_inv_two':{
+      const t=G.players[choice.target];
+      if(!t.identities[choice.layer-1].revealed)setPlayerKnowledge(a.player,choice.target,choice.layer,t.identities[choice.layer-1].card);
+      addLog('🔍 密探：'+p.name+'调查了'+t.name+'的第'+choice.layer+'层。');
+      a.done++; if(a.done>=2){G.pendingAction=null;}else{showModal_selectPlayerAndLayer('密探：选择第2位目标和层数',a.player,(c2)=>resolvePending(c2));return;}
+      break;
+    }
+    case 'eff_skip':{G.players[choice.target].skipNext=true;addLog('⏭️ 术士：'+G.players[choice.target].name+'下回合被跳过。');break;}
+    case 'eff_mutual':{
+      const t=G.players[choice.target];
+      G._mv={a:a.player,b:choice.target,bl:choice.layer};
+      G.pendingAction={type:'eff_mutual2',player:a.player,target:choice.target,blayer:choice.layer};
+      showModal_selectLayer('选择让'+t.name+'查看你的哪一层？',(c2)=>{
+        setPlayerKnowledge(a.player,choice.target,choice.layer,t.identities[choice.layer-1].card);
+        setPlayerKnowledge(choice.target,a.player,c2.layer,p.identities[c2.layer-1].card);
+        addLog('🤝 信使：'+p.name+'与'+t.name+'互相查看了一张身份。');
+        G.pendingAction=null;renderAll();
+      });return;
+    }
+    case 'eff_view_hidden':{
+      const t=G.players[choice.target];
+      setPlayerKnowledge(a.player,choice.target,choice.layer,t.identities[choice.layer-1].card);
+      addLog('👁️ 窥视者：'+p.name+'查看了'+t.name+'暗置的第'+choice.layer+'层。');break;
+    }
+    case 'eff_silence':{G.players[choice.target].cannotDeclare=true;addLog('🤫 禁言者：'+G.players[choice.target].name+'下回合不能宣言。');break;}
+    case 'eff_swap_rev':{
+      const t=G.players[choice.target];
+      const tid=t.identities[choice.layer-1];
+      if(!tid.revealed){addLog('目标身份未揭示，无法交换。');break;}
+      const prev=p.identities.filter(id=>id.revealed);
+      if(prev.length===0){addLog('你没有已揭示身份可交换。');break;}
+      if(prev.length===1){
+        const tmp={...prev[0].card};
+        p.identities[prev[0].layer-1].card={...tid.card};
+        t.identities[choice.layer-1].card=tmp;
+        p.faction=calcFaction(p.identities.map(id=>id.card));
+        t.faction=calcFaction(t.identities.map(id=>id.card));
+        addLog('🔄 影武者：'+p.name+'与'+t.name+'交换了已揭示身份。');
+        break;
+      }
+      G.pendingAction={type:'eff_swap_rev2',player:a.player,target:choice.target,tlayer:choice.layer};
+      const myLayers=prev.map(id=>id.layer);
+      showModal_selectLayerFromList('选择你哪张已揭示身份用于交换？',myLayers,(c2)=>{
+        const tmp={...p.identities[c2.layer-1].card};
+        p.identities[c2.layer-1].card={...t.identities[choice.layer-1].card};
+        t.identities[choice.layer-1].card=tmp;
+        p.faction=calcFaction(p.identities.map(id=>id.card));
+        t.faction=calcFaction(t.identities.map(id=>id.card));
+        addLog('🔄 影武者：'+p.name+'与'+t.name+'交换了已揭示身份。');
+        G.pendingAction=null;renderAll();
+      });return;
+    }
+  }
+  G.pendingAction=null;renderAll();
+}
+
+// ============ GRIMOIRE EFFECTS ============
+function consumeGrimoire(pi,gi){
+  const p=G.players[pi];
+  const g=p.grimoires[gi];
+  p.grimoires.splice(gi,1); G.grimoireDiscard.push(g);
+  addLog('📜 '+p.name+'使用了魔典【'+g.name+'】。');
+  return g;
+}
+function playGrimoire(pi,gi){
+  const p=G.players[pi];
+  if(gi<0||gi>=p.grimoires.length)return;
+  const g=p.grimoires[gi];
+
+  // g2/g6/g10: instant effects, consume immediately
+  if(g.type==='g2'){consumeGrimoire(pi,gi);giveCoins(pi,3);renderAll();return;}
+  if(g.type==='g6'){consumeGrimoire(pi,gi);p.discountThisTurn=true;addLog('💰 '+p.name+'本回合调查费减半。');renderAll();return;}
+  if(g.type==='g10'){consumeGrimoire(pi,gi);drawGrimoire(pi,1);renderAll();return;}
+
+  // All other grimoires: show modal first, consume only on confirm
+  switch(g.type){
+    case 'g1':
+      G.pendingAction={type:'grim_inv',player:pi};
+      showModal_selectPlayerAndLayer('洞察：选择目标和层数',pi,(c)=>{
+        consumeGrimoire(pi,gi);investigate(pi,c.target,c.layer);G.pendingAction=null;renderAll();
+      });
+      return;
+    case 'g3':{
+      const next=nextAlive(pi);
+      if(next===-1){showToast('没有存活的玩家可跳过！','error');return;}
+      consumeGrimoire(pi,gi);
+      G.players[next].skipNext=true;
+      addLog('⏭️ '+G.players[next].name+'下回合被跳过。');
+      G.pendingAction=null;renderAll();
+      return;
+    }
+    case 'g4':{
+      const urev=[1,2,3].filter(l=>!p.identities[l-1].revealed);
+      if(urev.length===0){showToast('所有身份已揭示！','error');return;}
+      G.pendingAction={type:'grim_self',player:pi};
+      showModal_selectLayerFromList('内省：查看自己哪一层？',urev,(c)=>{
+        consumeGrimoire(pi,gi);setPlayerKnowledge(pi,pi,c.layer,p.identities[c.layer-1].card);
+        addLog('🔍 '+p.name+'内省了自己第'+c.layer+'层。');G.pendingAction=null;renderAll();
+      });
+      return;
+    }
+    case 'g5':{
+      const disc=G.grimoireDiscard.filter(gg=>gg.uid!==g.uid);
+      if(disc.length===0){showToast('弃牌堆无其他魔典。','error');return;}
+      G.pendingAction={type:'grim_recycle',player:pi};
+      showModal_selectGrimoire('回收：选择一张魔典',disc,(c)=>{
+        consumeGrimoire(pi,gi);
+        const idx=G.grimoireDiscard.findIndex(gg=>gg.uid===c.uid);
+        if(idx>=0){const[gg]=G.grimoireDiscard.splice(idx,1);p.grimoires.push(gg);addLog('♻️ 回收了【'+gg.name+'】。');}
+        G.pendingAction=null;renderAll();
+      });
+      return;
+    }
+    case 'g7':{
+      const revLayers=p.identities.filter(id=>id.revealed).map(id=>id.layer);
+      if(revLayers.length===0){showToast('没有已揭示身份。','error');return;}
+      G.pendingAction={type:'grim_hide',player:pi};
+      showModal_selectLayerFromList('隐遁：暗置自己哪一层？',revLayers,(c)=>{
+        consumeGrimoire(pi,gi);p.identities[c.layer-1].revealed=false;
+        addLog('🌫️ '+p.name+'暗置了自己第'+c.layer+'层。');G.pendingAction=null;renderAll();
+      });
+      return;
+    }
+    case 'g8':
+      G.pendingAction={type:'grim_swap',player:pi};
+      startGrimSwap(pi,gi);
+      return;
+    case 'g9':
+      G.pendingAction={type:'grim_force',player:pi};
+      showModal_selectPlayer('逼言：选择必须宣言的玩家',pi,(c)=>{
+        consumeGrimoire(pi,gi);G.players[c.target].mustDeclare=true;
+        addLog('📢 '+G.players[c.target].name+'下回合必须宣言。');G.pendingAction=null;renderAll();
+      });
+      return;
+    case 'g11':
+      G.pendingAction={type:'grim_protect',player:pi};
+      showModal_selectPlayer('庇护：选择要保护的玩家',pi,(c)=>{
+        consumeGrimoire(pi,gi);G.players[c.target].protected=true;
+        addLog('🛡️ '+G.players[c.target].name+'受庇护。');G.pendingAction=null;renderAll();
+      });
+      return;
+    case 'g12':{
+      const disc2=G.grimoireDiscard.filter(gg=>gg.uid!==g.uid);
+      if(disc2.length===0){showToast('弃牌堆无其他魔典。','error');return;}
+      const top3=disc2.slice(-3);
+      G.pendingAction={type:'grim_pick',player:pi};
+      showModal_selectGrimoire('翻旧账：选择一张',top3,(c)=>{
+        consumeGrimoire(pi,gi);
+        const idx=G.grimoireDiscard.findIndex(gg=>gg.uid===c.uid);
+        if(idx>=0){const[gg]=G.grimoireDiscard.splice(idx,1);p.grimoires.push(gg);addLog('📜 翻旧账拿回【'+gg.name+'】。');}
+        G.pendingAction=null;renderAll();
+      });
+      return;
+    }
+    case 'g13':
+      G.pendingAction={type:'grim_star',player:pi,done:0};
+      showModal_selectPlayerAndLayer('星图：选择第一位',pi,(c1)=>{
+        consumeGrimoire(pi,gi);
+        if(!G.players[c1.target].identities[c1.layer-1].revealed)setPlayerKnowledge(pi,c1.target,c1.layer,G.players[c1.target].identities[c1.layer-1].card);
+        showModal_selectPlayerAndLayer('星图：选择第二位',pi,(c2)=>{
+          if(!G.players[c2.target].identities[c2.layer-1].revealed)setPlayerKnowledge(pi,c2.target,c2.layer,G.players[c2.target].identities[c2.layer-1].card);
+          addLog('🌟 '+p.name+'通过星图查看了两人身份。');G.pendingAction=null;renderAll();
+        });
+      });
+      return;
+  }
+}
+
+function startGrimSwap(pi,gi){
+  const others=G.players.filter(p=>p.alive&&p.index!==pi);
+  let html='<p style="color:#bdc3c7;margin-bottom:12px">偷换：选择第一位玩家</p>';
+  others.forEach(p=>{html+='<button class="modal-option" data-p1="'+p.index+'">'+p.name+'</button>';});
+  html+='<button class="modal-cancel" onclick="hideModal();G.pendingAction=null;renderAll()">取消</button>';
+  showModal('偷换 - 第一步',html);
+  document.querySelectorAll('#modal .modal-option').forEach(btn=>{btn.onclick=()=>{
+    const p1=parseInt(btn.dataset.p1);
+    const urev1=[1,2,3].filter(l=>!G.players[p1].identities[l-1].revealed);
+    let h2='<p style="color:#bdc3c7;margin-bottom:12px">选择'+G.players[p1].name+'的层数</p>';
+    urev1.forEach(l=>{h2+='<button class="modal-option" data-p1="'+p1+'" data-l1="'+l+'">第'+l+'层</button>';});
+    h2+='<button class="modal-cancel" onclick="hideModal();G.pendingAction=null;renderAll()">取消</button>';
+    showModal('偷换 - 第二步',h2);
+    document.querySelectorAll('#modal .modal-option').forEach(b2=>{b2.onclick=()=>{
+      const l1=parseInt(b2.dataset.l1);
+      const others2=G.players.filter(p=>p.alive&&p.index!==p1);
+      let h3='<p style="color:#bdc3c7;margin-bottom:12px">选择第二位玩家</p>';
+      others2.forEach(p=>{h3+='<button class="modal-option" data-p1="'+p1+'" data-l1="'+l1+'" data-p2="'+p.index+'">'+p.name+'</button>';});
+      h3+='<button class="modal-cancel" onclick="hideModal();G.pendingAction=null;renderAll()">取消</button>';
+      showModal('偷换 - 第三步',h3);
+      document.querySelectorAll('#modal .modal-option').forEach(b3=>{b3.onclick=()=>{
+        const p2=parseInt(b3.dataset.p2);
+        const urev2=[1,2,3].filter(l=>!G.players[p2].identities[l-1].revealed);
+        let h4='<p style="color:#bdc3c7;margin-bottom:12px">选择'+G.players[p2].name+'的层数</p>';
+        urev2.forEach(l=>{h4+='<button class="modal-option" data-p1="'+p1+'" data-l1="'+l1+'" data-p2="'+p2+'" data-l2="'+l+'">第'+l+'层</button>';});
+        h4+='<button class="modal-cancel" onclick="hideModal();G.pendingAction=null;renderAll()">取消</button>';
+        showModal('偷换 - 第四步',h4);
+        document.querySelectorAll('#modal .modal-option').forEach(b4=>{b4.onclick=()=>{
+          const l2=parseInt(b4.dataset.l2);
+          hideModal();
+          consumeGrimoire(pi,gi);
+          const pp1=G.players[p1],pp2=G.players[p2];
+          const tmp=pp1.identities[l1-1].card;
+          pp1.identities[l1-1].card=pp2.identities[l2-1].card;
+          pp2.identities[l2-1].card=tmp;
+          pp1.faction=calcFaction(pp1.identities.map(id=>id.card));
+          pp2.faction=calcFaction(pp2.identities.map(id=>id.card));
+          addLog('🔄 偷换：'+pp1.name+'与'+pp2.name+'的身份被交换（未查看）。');
+          G.pendingAction=null;renderAll();
+        };});};});};});};});
+}
+
+function drawGrimoire(pi,count){
+  const p=G.players[pi];
+  for(let i=0;i<count;i++){
+    if(G.grimoireDeck.length===0){
+      addLog('📜 魔典牌堆已空，自动鸣金！');
+      const alive=G.players.filter(pl=>pl.alive);
+      G.peaceResponders=alive.map(pl=>pl.index);
+      G.peaceInitiator=-1;
+      resolvePeace();return;
+    }
+    p.grimoires.push(G.grimoireDeck.pop());
+  }
+  addLog('📜 '+p.name+'抽取了'+count+'张魔典。');
+}
+
+// ============ UI ============
+function showHandoff(){
+  if(G.gameOver)return;
+  document.getElementById('handoff-overlay').classList.remove('hidden');
+  document.querySelector('#handoff-overlay .next-player').textContent='轮到：'+G.players[G.currentPlayer].name;
+  document.getElementById('game-screen').classList.add('hidden');
+  document.getElementById('modal-overlay').classList.add('hidden');
+}
+function hideHandoff(){
+  document.getElementById('handoff-overlay').classList.add('hidden');
+  document.getElementById('game-screen').classList.remove('hidden');
+  renderAll();
+}
+
+function renderAll(){
+  if(G.gameOver)return;
+  renderTopBar();renderMyCards();renderPublicBoard();renderActions();renderGrimoires();renderLog();
+}
+
+function renderTopBar(){
+  const p=G.players[G.currentPlayer];
+  document.querySelector('#top-bar .turn-info').textContent='第'+G.turnCount+'回合 · '+p.name;
+  const b=document.querySelector('#top-bar .phase-badge');
+  const labels={resource:'资源阶段',action:'行动阶段',declare:'宣言阶段',peace:'鸣金阶段'};
+  b.textContent=labels[G.phase]||G.phase;
+  b.className='phase-badge phase-'+G.phase;
+  document.getElementById('coin-display').textContent=p.coins;
+}
+
+function renderMyCards(){
+  const p=G.players[G.currentPlayer];
+  document.getElementById('my-identities').innerHTML=p.identities.map((id,i)=>{
+    const known=getPlayerKnowledge(G.currentPlayer,G.currentPlayer,i+1);
+    const card=id.card;
+    if(id.revealed||known){
+      const dot='<span class="card-color-dot" style="background:'+(card.color==='blue'?'#4a90d9':card.color==='red'?'#d94a4a':'#9b59b6')+'"></span>';
+      return '<div class="identity-card revealed '+card.color+'"><span class="layer-tag">第'+(i+1)+'层</span>'+(known&&!id.revealed?'<span class="known-tag">已知</span>':'')+'<span class="card-name">'+dot+card.name+'</span><span class="card-desc">'+card.desc+'</span>'+(id.revealed?'<span style="color:#f1c40f;font-size:.7em">已揭示</span>':'')+'</div>';
+    }
+    return '<div class="identity-card"><span class="layer-tag">第'+(i+1)+'层</span><span class="card-hidden">？？？</span><span style="font-size:.7em;color:#7f8c8d">未知身份</span></div>';
+  }).join('');
+}
+
+function renderPublicBoard(){
+  document.getElementById('player-grid').innerHTML=G.players.map((p,i)=>{
+    const isCur=i===G.currentPlayer;
+    const slots=p.identities.map((id,j)=>{
+      if(id.revealed) return '<div class="pid-slot revealed '+id.card.color+'"><span class="slot-layer">L'+(j+1)+'</span>'+id.card.name[0]+'</div>';
+      return '<div class="pid-slot hidden"><span class="slot-layer">L'+(j+1)+'</span>?</div>';
+    }).join('');
+    return '<div class="player-card'+(isCur?' current':'')+(!p.alive?' dead':'')+'"><div class="pname">'+(isCur?'▶ ':'')+p.name+(!p.alive?' 💀':'')+'</div><div class="pid-slots">'+slots+'</div><div style="font-size:.7em;color:#7f8c8d;margin-top:4px">⭐'+p.coins+' 📜'+p.grimoires.length+'</div></div>';
+  }).join('');
+}
+
+function renderActions(){
+  const el=document.getElementById('action-btns');
+  const p=G.players[G.currentPlayer];
+
+  if(G.phase==='peace'){
+    el.innerHTML='<p style="text-align:center;margin-bottom:12px;color:#f1c40f">🕊️ '+G.players[G.peaceInitiator]?.name+' 发起了鸣金！</p><button class="action-btn peace-btn" onclick="respondToPeace('+G.currentPlayer+',true)">🕊️ 响应鸣金（跳过回合）</button><button class="action-btn" style="border-color:#d94a4a;color:#d94a4a" onclick="respondToPeace('+G.currentPlayer+',false)">💔 拒绝鸣金（继续游戏）</button>';
+    return;
+  }
+  if(G.pendingAction){el.innerHTML='<p style="text-align:center;color:#f39c12">请完成上方效果选择...</p>';return;}
+
+  let h='';
+  if(G.phase==='resource'){
+    h+='<button class="action-btn btn-gold" style="font-weight:bold" onclick="chooseResource(\'coins\')">💰 获取2枚星币</button>';
+    h+='<button class="action-btn" style="border-color:#9b59b6;color:#9b59b6;font-weight:bold" onclick="chooseResource(\'grimoire\')">📜 抽取1张魔典（剩'+G.grimoireDeck.length+'张）</button>';
+  }
+  if(G.phase==='action'){
+    const d=p.discountThisTurn;
+    h+='<div style="margin-top:8px;font-size:.85em;color:#7f8c8d">🔍 调查'+(d?' (半价!)':'')+'</div>';
+    h+='<button class="action-btn" onclick="startInvestigate(1)">调查身份一<span class="cost">'+(d?0:1)+'⭐</span></button>';
+    h+='<button class="action-btn" onclick="startInvestigate(2)">调查身份二<span class="cost">'+(d?1:2)+'⭐</span></button>';
+    h+='<button class="action-btn" onclick="startInvestigate(3)">调查身份三<span class="cost">'+(d?1:3)+'⭐</span></button>';
+    h+='<button class="action-btn btn-sm btn-gray" onclick="startInvestigate(null,true)">调查自己（双倍费用）</button>';
+    h+='<div style="margin-top:8px;font-size:.85em;color:#7f8c8d">📢 揭示（需先调查，双倍调查费）</div>';
+    h+='<button class="action-btn" onclick="startReveal()">揭示一张身份</button>';
+    h+='<div style="margin-top:12px"></div>';
+    h+='<button class="action-btn declare-op-btn" onclick="startDeclare()">✨ 宣言自己的身份</button>';
+    if(p.mustDeclare) h+='<p style="color:#d94a4a;font-size:.8em;text-align:center">⚠ 本回合必须宣言！</p>';
+    h+='<button class="action-btn peace-btn" onclick="startPeace()">🕊️ 鸣金（跳过回合）</button>';
+    if(p.mustDeclare&&p.declarationsThisTurn===0){
+      h+='<button class="action-btn btn-gray" disabled style="margin-top:12px">🔒 必须先宣言才能结束回合</button>';
+    } else {
+      h+='<button class="action-btn btn-gray" onclick="endCurrentTurn()" style="margin-top:12px">✅ 结束回合</button>';
+    }
+  }
+  el.innerHTML=h;
+}
+
+function renderGrimoires(){
+  const p=G.players[G.currentPlayer];
+  const area=document.getElementById('grimoire-area');
+  const cards=document.getElementById('grimoire-cards');
+  if(p.grimoires.length===0){area.classList.add('hidden');return;}
+  area.classList.remove('hidden');
+  cards.innerHTML=p.grimoires.map((g,i)=>'<div class="grimoire-card" onclick="playGrimoire('+G.currentPlayer+','+i+')" title="'+g.desc+'"><div class="gname">'+g.name+'</div><div class="gdesc">'+g.desc+'</div></div>').join('');
+}
+
+function renderLog(){
+  document.getElementById('log-entries').innerHTML=G.log.slice(0,30).map(e=>'<div class="log-entry"><span class="time">'+e.time+'</span>'+e.msg+'</div>').join('');
+}
+
+// ============ MODALS ============
+function showModal(title,content){document.getElementById('modal-overlay').classList.remove('hidden');document.getElementById('modal').innerHTML='<h3>'+title+'</h3>'+content;}
+function hideModal(){document.getElementById('modal-overlay').classList.add('hidden');}
+
+function showModal_selectPlayer(title,exclude,cb){
+  const opts=G.players.filter(p=>p.alive&&p.index!==exclude).map(p=>'<button class="modal-option" data-v="'+p.index+'">'+p.name+'</button>').join('');
+  showModal(title,opts+'<button class="modal-cancel" onclick="hideModal();G.pendingAction=null;renderAll()">取消</button>');
+  document.querySelectorAll('#modal .modal-option').forEach(b=>{b.onclick=()=>{hideModal();cb({target:parseInt(b.dataset.v)});};});
+}
+function showModal_selectLayer(title,cb){
+  const p=G.players[G.currentPlayer];
+  const opts=[1,2,3].map(l=>'<button class="modal-option" data-v="'+l+'">第'+l+'层'+(p.identities[l-1].revealed?' (已揭示)':'')+'</button>').join('');
+  showModal(title,opts+'<button class="modal-cancel" onclick="hideModal();G.pendingAction=null;renderAll()">取消</button>');
+  document.querySelectorAll('#modal .modal-option').forEach(b=>{b.onclick=()=>{hideModal();cb({layer:parseInt(b.dataset.v)});};});
+}
+function showModal_selectLayerFromList(title,layers,cb){
+  const opts=layers.map(l=>'<button class="modal-option" data-v="'+l+'">第'+l+'层</button>').join('');
+  showModal(title,opts+'<button class="modal-cancel" onclick="hideModal();G.pendingAction=null;renderAll()">取消</button>');
+  document.querySelectorAll('#modal .modal-option').forEach(b=>{b.onclick=()=>{hideModal();cb({layer:parseInt(b.dataset.v)});};});
+}
+function showModal_selectPlayerAndLayer(title,exclude,cb){
+  let opts='';
+  G.players.filter(p=>p.alive&&p.index!==exclude).forEach(p=>{[1,2,3].forEach(l=>{const rev=p.identities[l-1].revealed;opts+='<button class="modal-option" data-t="'+p.index+'" data-l="'+l+'">'+p.name+' - 第'+l+'层'+(rev?' (已揭示)':'')+'</button>';});});
+  showModal(title,opts+'<button class="modal-cancel" onclick="hideModal();G.pendingAction=null;renderAll()">取消</button>');
+  document.querySelectorAll('#modal .modal-option').forEach(b=>{b.onclick=()=>{hideModal();cb({target:parseInt(b.dataset.t),layer:parseInt(b.dataset.l)});};});
+}
+function showModal_selectCard(title,pool,cb){
+  const opts=pool.map(c=>'<button class="modal-option" data-v="'+c.type+'"><strong>'+c.name+'</strong> - '+c.desc+'</button>').join('');
+  showModal(title,opts+'<button class="modal-cancel" onclick="hideModal();G.pendingAction=null;renderAll()">取消</button>');
+  document.querySelectorAll('#modal .modal-option').forEach(b=>{b.onclick=()=>{hideModal();cb({type:b.dataset.v});};});
+}
+function showModal_selectGrimoire(title,glist,cb){
+  if(glist.length===0){showModal(title,'<p style="text-align:center;color:#7f8c8d">无可选魔典</p><button class="modal-cancel" onclick="hideModal();G.pendingAction=null;renderAll()">关闭</button>');return;}
+  const opts=glist.map(g=>'<button class="modal-option" data-v="'+g.uid+'"><strong>'+g.name+'</strong> - '+g.desc+'</button>').join('');
+  showModal(title,opts+'<button class="modal-cancel" onclick="hideModal();G.pendingAction=null;renderAll()">取消</button>');
+  document.querySelectorAll('#modal .modal-option').forEach(b=>{b.onclick=()=>{hideModal();cb({uid:b.dataset.v});};});
+}
+
+function showToast(msg,type){
+  const el=document.createElement('div');el.className='toast '+(type||'info');el.textContent=msg;
+  document.getElementById('toast-container').appendChild(el);
+  setTimeout(()=>el.remove(),3000);
+}
+
+function renderGameOver(){
+  const map={blue:'蓝',red:'红',alien:'异族',hybrid:'混血儿'};
+  let det='<div class="result-detail">';
+  G.players.forEach(p=>{
+    const cards=p.identities.map(id=>id.card.name+'('+(id.card.color==='blue'?'蓝':id.card.color==='red'?'红':'异')+')').join(' / ');
+    det+='<p><strong>'+p.name+'</strong>: '+cards+' → <span class="faction-'+p.faction+'">'+map[p.faction]+'阵营</span> '+(p.alive?'✅':'💀')+'</p>';
+  });
+  det+='</div>';
+  document.getElementById('game-over-screen').innerHTML='<h1>🏆 游戏结束</h1><p style="font-size:1.3em">'+G.gameResult.msg+'</p>'+det+'<button class="btn btn-primary" onclick="location.reload()">🔄 再来一局</button>';
+  document.getElementById('game-over-screen').classList.remove('hidden');
+  document.getElementById('game-screen').classList.add('hidden');
+  document.getElementById('handoff-overlay').classList.add('hidden');
+}
+
+// ============ EVENT HANDLERS ============
+function chooseResource(choice){
+  if(G.phase!=='resource')return;
+  const p=G.players[G.currentPlayer];
+  if(choice==='coins'){giveCoins(G.currentPlayer,2);addLog('💰 '+p.name+'选择获取2枚星币。');}
+  else{drawGrimoire(G.currentPlayer,1);if(G.gameOver)return;}
+  G.phase='action';renderAll();
+}
+
+function startInvestigate(layer,isSelf){
+  if(G.phase!=='action')return;
+  const p=G.players[G.currentPlayer];
+  if(isSelf){
+    const urev=p.identities.map((id,i)=>({layer:i+1,rev:id.revealed})).filter(x=>!x.rev);
+    if(urev.length===0){showToast('你所有身份已揭示！','error');return;}
+    if(urev.length===1){const r=investigate(G.currentPlayer,G.currentPlayer,urev[0].layer);if(r.err)showToast(r.err,'error');else renderAll();return;}
+    G.pendingAction={type:'self_inv',player:G.currentPlayer};
+    showModal_selectLayerFromList('调查自己的哪一层？',urev.map(x=>x.layer),(c)=>{
+      G.pendingAction=null;
+      const r=investigate(G.currentPlayer,G.currentPlayer,c.layer);
+      if(r.err)showToast(r.err,'error');else renderAll();
+    });return;
+  }
+  G.pendingAction={type:'investigate',player:G.currentPlayer};
+  showModal_selectPlayerAndLayer('调查：选择目标和层数',G.currentPlayer,(c)=>{
+    G.pendingAction=null;
+    const r=investigate(G.currentPlayer,c.target,c.layer);
+    if(r.err)showToast(r.err,'error');else renderAll();
+  });
+}
+
+function startReveal(){
+  if(G.phase!=='action')return;
+  const opts=[];
+  for(let t=0;t<G.playerCount;t++){
+    if(t===G.currentPlayer||!G.players[t].alive)continue;
+    for(let l=1;l<=3;l++){
+      if(G.players[t].identities[l-1].revealed)continue;
+      const k=getPlayerKnowledge(G.currentPlayer,t,l);
+      if(k) opts.push({target:t,layer:l,card:k});
+    }
+  }
+  if(opts.length===0){showToast('没有已调查但未揭示的目标！','error');return;}
+  const h=opts.map(o=>'<button class="modal-option" data-t="'+o.target+'" data-l="'+o.layer+'">'+G.players[o.target].name+' 第'+o.layer+'层 ('+o.card.name+') - '+o.layer*2+'⭐</button>').join('');
+  showModal('揭示身份',h+'<button class="modal-cancel" onclick="hideModal();renderAll()">取消</button>');
+  document.querySelectorAll('#modal .modal-option').forEach(b=>{b.onclick=()=>{hideModal();const r=revealIdentity(G.currentPlayer,parseInt(b.dataset.t),parseInt(b.dataset.l));if(r.err)showToast(r.err,'error');else renderAll();};});
+}
+
+function startDeclare(){
+  if(G.phase!=='action')return;
+  const p=G.players[G.currentPlayer];
+  const urev=p.identities.map((id,i)=>({layer:i+1,rev:id.revealed})).filter(x=>!x.rev);
+  if(urev.length===0){showToast('所有身份已揭示！','error');return;}
+  const h=urev.map(x=>'<button class="modal-option" data-l="'+x.layer+'">宣言第'+x.layer+'层</button>').join('');
+  showModal('宣言：选择要宣言的层数',h+'<button class="modal-cancel" onclick="hideModal();renderAll()">取消</button>');
+  document.querySelectorAll('#modal .modal-option').forEach(b=>{b.onclick=()=>{
+    const layer=parseInt(b.dataset.l);hideModal();
+    const pool=layer===1?L1_POOL:layer===2?L2_POOL:L3_POOL;
+    showModal_selectCard('宣言第'+layer+'层：你猜是什么身份？',pool,(c)=>{
+      const r=declareIdentity(G.currentPlayer,layer,c.type);
+      if(r.err){showToast(r.err,'error');renderAll();return;}
+      if(r.correct){showToast('宣言成功！你是【'+r.card.name+'】！','success');applyDeclareEffect(G.currentPlayer,r.card,layer);}
+      else if(r.notRevealed){showToast('宣言失败，但赌徒保护了你！','info');}
+      else{showToast('宣言失败...实际是【'+r.card.name+'】','error');}
+      renderAll();
+    });
+  };});
+}
+
+function startPeace(){
+  if(G.phase!=='action')return;
+  showModal('确认鸣金','<p style="text-align:center;line-height:1.8;margin-bottom:16px;color:#bdc3c7">你认为场上所有玩家都是你的队友吗？<br>鸣金跳过你的回合，其他玩家依次选择是否响应。<br>全员响应且均同阵营→共同胜利。<br>否则按异族&gt;混血儿&gt;少数红/蓝判定。</p><button class="btn btn-primary" style="width:100%" onclick="hideModal();callForPeace('+G.currentPlayer+')">确认鸣金</button><button class="modal-cancel" style="width:100%" onclick="hideModal()">取消</button>');
+}
+
+// ============ INIT ============
+let selectedCount=6;
+function selectPlayerCount(n){
+  selectedCount=n;
+  document.querySelectorAll('.pc-btn').forEach(b=>b.classList.toggle('active',parseInt(b.dataset.count)===n));
+  const df=['小明','小红','小刚','小丽','阿强','阿珍','大壮','小美'];
+  document.getElementById('name-inputs').innerHTML=Array.from({length:n},(_,i)=>'<label>玩家'+(i+1)+'名称</label><input type="text" id="pname-'+i+'" value="'+df[i]+'" maxlength="8">').join('');
+}
+
+document.getElementById('start-btn').onclick=()=>{
+  const names=[];
+  for(let i=0;i<selectedCount;i++){const inp=document.getElementById('pname-'+i);names.push(inp.value.trim()||('玩家'+(i+1)));}
+  initGame(names);
+  document.getElementById('start-screen').classList.add('hidden');
+  showHandoff();
+};
+document.getElementById('handoff-ready').onclick=hideHandoff;
+
+// Build player count selector
+(function(){
+  const row=document.getElementById('pc-row');
+  for(let i=5;i<=8;i++){const b=document.createElement('button');b.className='pc-btn';b.textContent=i+'人';b.dataset.count=i;b.onclick=()=>selectPlayerCount(i);row.appendChild(b);}
+  selectPlayerCount(6);
+})();
+</script>
+</body>
+</html>
