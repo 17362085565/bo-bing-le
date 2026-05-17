@@ -231,7 +231,7 @@ function initGame(playerNames){
     coins:0, grimoires:[], alive:true,
     skipNext:false, mustDeclare:false, cannotDeclare:false,
     canDeclareTwice:false, declarationsThisTurn:0,
-    protected:false, discountThisTurn:false,
+    protected:false, discountThisTurn:false, hasActedThisTurn:false,
     gamblerUsed:false,
   }));
   players.forEach(p=>{p.faction=calcFaction(p.identities.map(id=>id.card));});
@@ -340,6 +340,7 @@ function investigate(observer,target,layer){
   }
 
   G.players[observer].coins-=ac;
+  G.players[observer].hasActedThisTurn=true;
   const card=G.players[target].identities[layer-1].card;
   setPlayerKnowledge(observer,target,layer,card);
   const tn=isSelf?'自己':G.players[target].name;
@@ -356,6 +357,7 @@ function revealIdentity(actor,target,layer){
   if(!getPlayerKnowledge(actor,target,layer)) return {err:'你必须先调查该身份才能揭示！'};
 
   G.players[actor].coins-=cost;
+  G.players[actor].hasActedThisTurn=true;
   const card=G.players[target].identities[layer-1].card;
   G.players[target].identities[layer-1].revealed=true;
   G.revealHistory.push({player:target,layer,card});
@@ -388,6 +390,7 @@ function declareIdentity(pi,layer,guessedType){
   const actual=p.identities[layer-1].card;
   const correct=actual.type===guessedType;
   p.declarationsThisTurn++;
+  p.hasActedThisTurn=true;
 
   if(correct){
     p.identities[layer-1].revealed=true;
@@ -463,7 +466,7 @@ function endGame(result){
 function endCurrentTurn(){
   if(G.gameOver)return;
   const p=G.players[G.currentPlayer];
-  p.protected=false; p.discountThisTurn=false; p.declarationsThisTurn=0; p.mustDeclare=false;
+  p.protected=false; p.discountThisTurn=false; p.declarationsThisTurn=0; p.mustDeclare=false; p.hasActedThisTurn=false;
   // 复仇者
   if(G.pendingDeathRevenge!==null&&G.pendingDeathRevenge!==undefined){
     const deadIdx=G.pendingDeathRevenge;
@@ -642,6 +645,7 @@ function consumeGrimoire(pi,gi){
   const p=G.players[pi];
   const g=p.grimoires[gi];
   p.grimoires.splice(gi,1); G.grimoireDiscard.push(g);
+  p.hasActedThisTurn=true;
   addLog('📜 '+p.name+'使用了魔典【'+g.name+'】。');
   return g;
 }
@@ -886,7 +890,11 @@ function renderActions(){
     h+='<div style="margin-top:12px"></div>';
     h+='<button class="action-btn declare-op-btn" onclick="startDeclare()">✨ 宣言自己的身份</button>';
     if(p.mustDeclare) h+='<p style="color:#d94a4a;font-size:.8em;text-align:center">⚠ 本回合必须宣言！</p>';
-    h+='<button class="action-btn peace-btn" onclick="startPeace()">🕊️ 鸣金（跳过回合）</button>';
+    if(p.hasActedThisTurn){
+      h+='<button class="action-btn" disabled title="已进行过有效操作，无法鸣金">🕊️ 鸣金（已行动过）</button>';
+    } else {
+      h+='<button class="action-btn peace-btn" onclick="startPeace()">🕊️ 鸣金（跳过回合）</button>';
+    }
     if(p.mustDeclare&&p.declarationsThisTurn===0){
       h+='<button class="action-btn btn-gray" disabled style="margin-top:12px">🔒 必须先宣言才能结束回合</button>';
     } else {
@@ -1038,6 +1046,8 @@ function startDeclare(){
 
 function startPeace(){
   if(G.phase!=='action')return;
+  const p=G.players[G.currentPlayer];
+  if(p.hasActedThisTurn){showToast('已进行过有效操作（宣言/调查/使用魔典），无法鸣金！','error');return;}
   showModal('确认鸣金','<p style="text-align:center;line-height:1.8;margin-bottom:16px;color:#bdc3c7">你认为场上所有玩家都是你的队友吗？<br>鸣金跳过你的回合，其他玩家依次选择是否响应。<br>全员响应且均同阵营→共同胜利。<br>否则按异族&gt;混血儿&gt;少数红/蓝判定。</p><button class="btn btn-primary" style="width:100%" onclick="hideModal();callForPeace('+G.currentPlayer+')">确认鸣金</button><button class="modal-cancel" style="width:100%" onclick="hideModal()">取消</button>');
 }
 
