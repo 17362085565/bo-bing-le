@@ -3,7 +3,7 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 
 export default defineConfig({
-  base: '/three-layer-identity/',
+  base: '/bo-bing-le/',
   plugins: [react(), tailwindcss()],
   resolve: {
     alias: { '@': '/src' },
