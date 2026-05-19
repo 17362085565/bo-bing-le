@@ -801,6 +801,7 @@ function effectRemoveIdentity(state: GameState, target: number, layer: Layer): G
     return { ...p, identities: p.identities.map(id => id.layer === layer ? { ...id, removed: true, revealed: true } : id) };
   }) };
   s = withLog(s, `💀 ${s.players[target].name}的第${layer}层身份被移出！`);
+  s = recalcFactions(s);
   const died = checkDeath(s, target);
   if (died) s = killPlayer(s, target, state.currentPlayer);
   const win = checkWin(s);
@@ -837,11 +838,12 @@ function drawCards(state: GameState, count: number): GameState {
   };
 }
 
-function revealCard(state: GameState, target: number, layer: Layer) {
-  return { ...state, players: state.players.map(p => {
+function revealCard(state: GameState, target: number, layer: Layer): GameState {
+  const s = { ...state, players: state.players.map(p => {
     if (p.index !== target) return p;
     return { ...p, identities: p.identities.map(id => id.layer === layer ? { ...id, revealed: true } : id) };
   }) };
+  return recalcFactions(s);
 }
 
 function killPlayer(state: GameState, victim: number, killer: number) {

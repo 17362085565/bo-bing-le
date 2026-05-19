@@ -32,7 +32,7 @@ export function PlayerCard({ player, isCurrent }: Props) {
   const currentClass = isCurrent
     ? 'border-faction-hybrid shadow-[0_0_20px_rgba(241,196,15,0.3)] scale-105'
     : alive
-      ? `${FACTION_BORDER[player.faction] || 'border-bg-tertiary'} ${FACTION_GLOW[player.faction] || ''}`
+      ? 'border-bg-tertiary'
       : 'border-bg-tertiary/50 opacity-40';
 
   return (
