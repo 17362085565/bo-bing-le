@@ -11,23 +11,35 @@ export function checkDeath(state: GameState, playerIndex: number): boolean {
 export function checkWin(state: GameState): GameResult | null {
   const alive = state.players.filter(p => p.alive);
 
-  // Check kill-based wins
-  for (const record of state.killRecords) {
-    const killer = state.players[record.killer];
-    const victim = state.players[record.victim];
-    if (!killer || !victim) continue;
+  // Alien win: if first kill was NOT an alien, aliens win immediately
+  if (state.killRecords.length > 0 && !state.alienFirstKilled) {
+    const aliensAlive = alive.filter(p => p.faction === 'alien');
+    if (aliensAlive.length > 0) {
+      return { winner: 'alien', msg: `第一个死亡玩家不是异族，异族胜利！` };
+    }
+  }
 
-    // Hybrid: personally kill blue or red
-    if (killer.faction === 'hybrid' && (victim.faction === 'blue' || victim.faction === 'red')) {
-      return { winner: 'hybrid', msg: `混血儿 ${killer.name} 亲手杀死了 ${victim.name}，混血儿胜利！` };
-    }
-    // Blue kills red
-    if (killer.faction === 'blue' && victim.faction === 'red') {
-      return { winner: 'blue', msg: `蓝色阵营 ${killer.name} 杀死了红色阵营 ${victim.name}，蓝色胜利！` };
-    }
-    // Red kills blue
-    if (killer.faction === 'red' && victim.faction === 'blue') {
-      return { winner: 'red', msg: `红色阵营 ${killer.name} 杀死了蓝色阵营 ${victim.name}，红色胜利！` };
+  // Kill-based wins only valid when no aliens remain (aliens have priority).
+  // Blue/Red mutual kills win regardless of hybrids.
+  const aliensAlive = alive.some(p => p.faction === 'alien');
+
+  if (!aliensAlive) {
+    for (const record of state.killRecords) {
+      const killer = state.players[record.killer];
+      const victim = state.players[record.victim];
+      if (!killer || !victim) continue;
+
+      // Hybrid: personally kill blue or red
+      if (killer.faction === 'hybrid' && (victim.faction === 'blue' || victim.faction === 'red')) {
+        return { winner: 'hybrid', msg: `混血儿 ${killer.name} 亲手杀死了 ${victim.name}，混血儿胜利！` };
+      }
+      // Blue/Red mutual kills → win regardless of whether hybrids are alive
+      if (killer.faction === 'blue' && victim.faction === 'red') {
+        return { winner: 'blue', msg: `蓝色阵营 ${killer.name} 杀死了红色阵营 ${victim.name}，蓝色胜利！` };
+      }
+      if (killer.faction === 'red' && victim.faction === 'blue') {
+        return { winner: 'red', msg: `红色阵营 ${killer.name} 杀死了蓝色阵营 ${victim.name}，红色胜利！` };
+      }
     }
   }
 
