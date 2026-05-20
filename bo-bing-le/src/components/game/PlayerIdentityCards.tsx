@@ -44,8 +44,8 @@ export function PlayerIdentityCards() {
           }
 
           const fc = FACTION_COLORS[displayColor] || FACTION_COLORS.unknown;
-          const borderClass = id.revealed ? fc.border : known ? 'border-accent-gold' : 'border-bg-tertiary';
-          const bgStyle = id.revealed ? fc.bg : '';
+          const borderClass = id.revealed ? fc.border : known ? 'border-accent-gold/50 border-dashed' : 'border-bg-tertiary';
+          const bgStyle = id.revealed ? fc.bg : known ? 'rgba(241,196,15,0.06)' : '';
 
           return (
             <div
@@ -55,8 +55,8 @@ export function PlayerIdentityCards() {
             >
               <span className="absolute top-2 right-3 text-xs text-text-muted font-mono">L{layer}</span>
               {known && !id.revealed && (
-                <span className="absolute top-2 left-3 text-xs bg-accent-gold/20 text-accent-gold border border-accent-gold/30 px-2 py-0.5 rounded-full font-medium">
-                  已知
+                <span className="absolute top-2 left-3 text-xs bg-accent-gold/20 text-accent-gold border border-accent-gold/30 px-2 py-0.5 rounded-full font-medium flex items-center gap-1">
+                  🔍 调查
                 </span>
               )}
               {id.effectDisabled && (
@@ -76,7 +76,7 @@ export function PlayerIdentityCards() {
                 <span className="text-xs text-text-dim mt-1.5 leading-relaxed">{id.def.desc}</span>
               )}
               {id.revealed && (
-                <span className="text-faction-hybrid text-xs mt-1 font-medium">✦ 已揭示</span>
+                <span className="text-faction-hybrid text-xs mt-1 font-medium">🌐 已揭示（公开）</span>
               )}
             </div>
           );

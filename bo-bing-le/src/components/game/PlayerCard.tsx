@@ -47,26 +47,46 @@ export function PlayerCard({ player, isCurrent }: Props) {
       {/* Identity slots */}
       <div className="flex gap-1.5 justify-center mb-2">
         {player.identities.map(id => {
+          const isSelf = player.index === state.currentPlayer;
           const knowledgeKey = `${state.currentPlayer}_${player.index}_${id.layer}`;
-          const known = id.revealed ? { type: id.def.type, name: id.def.name, color: id.def.color } : state.knowledge[knowledgeKey];
-          const color = known?.color ?? id.def.color;
-          const baseBg = known
+          const selfKey = `${player.index}_${id.layer}`;
+          const revealed = id.revealed;
+          const investigated = !revealed && (state.knowledge?.[knowledgeKey] ?? null);
+          const selfKnown = !revealed && isSelf && (state.selfKnowledge?.[selfKey] ?? null);
+          const known = revealed
+            ? { source: 'revealed' as const, ...id.def }
+            : investigated
+              ? { source: 'investigated' as const, ...investigated }
+              : selfKnown
+                ? { source: 'self' as const, ...selfKnown }
+                : null;
+          const color = known?.color;
+          const bg = known
             ? color === 'blue' ? 'rgba(74,144,217,0.25)' : color === 'red' ? 'rgba(217,74,74,0.25)' : 'rgba(155,89,182,0.25)'
             : 'transparent';
-          const textColor = known
+          const txtColor = known
             ? FACTION_TEXT[color] || 'text-text-muted'
             : 'text-text-muted';
           const label = known ? (known.name?.[0] ?? '?') : '?';
+          // Revealed = solid border; investigated/self = dashed border + subtle marker
+          const borderClass = revealed
+            ? 'border-faction-blue/60'
+            : known
+              ? 'border-dashed border-white/30'
+              : 'border-bg-tertiary';
           return (
             <div key={id.layer}
-              className="w-10 h-[54px] rounded-lg border-2 flex flex-col items-center justify-center text-xs font-bold transition-all duration-300"
-              style={{
-                background: baseBg,
-                borderColor: known ? undefined : undefined,
-              }}
+              className={`w-10 h-[54px] rounded-lg border-2 flex flex-col items-center justify-center text-xs font-bold transition-all duration-300 ${borderClass}`}
+              style={{ background: bg }}
+              title={known ? `${known.source === 'revealed' ? '已揭示' : known.source === 'self' ? '已自省' : '已调查'}: ${known.name}(${known.color})` : '未知'}
             >
               <span className="text-[0.55em] text-text-muted mb-0.5">L{id.layer}</span>
-              <span className={textColor}>{label}</span>
+              <span className={txtColor}>
+                {label}
+                {known && known.source !== 'revealed' && (
+                  <span className="text-[0.5em] ml-px opacity-50">{known.source === 'self' ? '🔍' : '👁'}</span>
+                )}
+              </span>
             </div>
           );
         })}
